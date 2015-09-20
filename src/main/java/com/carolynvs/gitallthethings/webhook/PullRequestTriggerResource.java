@@ -2,8 +2,12 @@ package com.carolynvs.gitallthethings.webhook;
 
 import com.atlassian.activeobjects.external.ActiveObjects;
 import com.atlassian.bamboo.admin.configuration.AdministrationConfigurationService;
-import com.atlassian.bamboo.plan.PlanExecutionManager;
-import com.atlassian.bamboo.plan.PlanManager;
+import com.atlassian.bamboo.build.*;
+import com.atlassian.bamboo.build.creation.*;
+import com.atlassian.bamboo.plan.*;
+import com.atlassian.bamboo.plan.branch.*;
+import com.atlassian.bamboo.plan.cache.*;
+import com.atlassian.bamboo.variable.*;
 import com.atlassian.plugins.rest.common.security.AnonymousAllowed;
 import org.codehaus.jackson.map.ObjectMapper;
 
@@ -20,13 +24,35 @@ public class PullRequestTriggerResource
     private final PullRequestBuilder pullRequestBuilder;
     private final GitHubCommunicator github;
     private final PluginDataManager pluginData;
+    private final PlanTrigger planTrigger;
 
-    public PullRequestTriggerResource(PlanManager planManager, PlanExecutionManager planExecutionManager, AdministrationConfigurationService administrationConfigurationService, ActiveObjects ao)
+    public PullRequestTriggerResource(BranchDetectionService branchDetectionService, CachedPlanManager cachedPlanManager, PlanManager planManager,
+                                      VariableConfigurationService variableConfigurationService,
+                                      PlanExecutionManager planExecutionManager, AdministrationConfigurationService administrationConfigurationService,
+                                      ActiveObjects ao)
     {
         this.github = new GitHubCommunicator();
         this.pluginData = new PluginDataManager(ao);
         BambooLinkBuilder bambooLinkBuilder = new BambooLinkBuilder(administrationConfigurationService);
-        this.pullRequestBuilder = new PullRequestBuilder(planManager, planExecutionManager, pluginData, github, bambooLinkBuilder);
+        this.pullRequestBuilder = new PullRequestBuilder(branchDetectionService, cachedPlanManager, planManager, variableConfigurationService, planExecutionManager, pluginData, github, bambooLinkBuilder);
+
+        this.planTrigger = new PlanTrigger(branchDetectionService, cachedPlanManager, planManager, variableConfigurationService, planExecutionManager, bambooLinkBuilder);
+    }
+
+    @POST
+    @Path("test/{number}/{title}")
+    public Response test(@PathParam("number") Integer pullRequestNumber, @PathParam("title") String pullRequestTitle)
+    {
+        String planKey = "TEST-TEST";
+        try {
+            PullRequest pullRequest = new PullRequest();
+            pullRequest.Number = pullRequestNumber;
+            pullRequest.Title = pullRequestTitle;
+            planTrigger.createPullRequestBranchPlan(PlanKeys.getPlanKey(planKey), pullRequest);
+        } catch (PlanCreationDeniedException ex) {
+            Response.serverError().entity(new ServerError(ex).toJson()).build();
+        }
+        return Response.ok().build();
     }
 
     @POST
@@ -48,6 +74,7 @@ public class PullRequestTriggerResource
             return Response.status(Response.Status.ACCEPTED).build();
 
         try {
+            planTrigger.createPullRequestBranchPlan(PlanKeys.getPlanKey(planKey), pullRequestEvent.PullRequest);
             pullRequestBuilder.build(planKey, pullRequestEvent);
         } catch (Exception ex) {
             return Response.serverError().entity(new ServerError(ex).toJson()).build();

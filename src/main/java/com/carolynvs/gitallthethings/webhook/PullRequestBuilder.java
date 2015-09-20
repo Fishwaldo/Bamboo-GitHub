@@ -1,13 +1,13 @@
 package com.carolynvs.gitallthethings.webhook;
 
-import com.atlassian.bamboo.plan.PlanExecutionManager;
-import com.atlassian.bamboo.plan.PlanKeys;
-import com.atlassian.bamboo.plan.PlanManager;
-import com.atlassian.user.User;
-import com.carolynvs.gitallthethings.PullRequestBuildContext;
+import com.atlassian.bamboo.plan.*;
+import com.atlassian.bamboo.plan.branch.*;
+import com.atlassian.bamboo.plan.cache.*;
+import com.atlassian.bamboo.variable.*;
+import com.atlassian.user.*;
+import com.carolynvs.gitallthethings.*;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 public class PullRequestBuilder
 {
@@ -15,11 +15,14 @@ public class PullRequestBuilder
     private final PluginDataManager pluginData;
     private final GitHubCommunicator github;
 
-    public PullRequestBuilder(PlanManager planManager, PlanExecutionManager planExecutionManager, PluginDataManager pluginData, GitHubCommunicator github, BambooLinkBuilder bambooLinkBuilder)
+    public PullRequestBuilder(BranchDetectionService branchDetectionService, CachedPlanManager cachedPlanManager, PlanManager planManager,
+                              VariableConfigurationService variableConfigurationService,
+                              PlanExecutionManager planExecutionManager, PluginDataManager pluginData,
+                              GitHubCommunicator github, BambooLinkBuilder bambooLinkBuilder)
     {
         this.pluginData = pluginData;
         this.github = github;
-        this.planTrigger = new PlanTrigger(planManager, planExecutionManager, bambooLinkBuilder);
+        this.planTrigger = new PlanTrigger(branchDetectionService, cachedPlanManager, planManager, variableConfigurationService, planExecutionManager, bambooLinkBuilder);
     }
 
     public void build(String planKey, PullRequestEvent pullRequestEvent)
