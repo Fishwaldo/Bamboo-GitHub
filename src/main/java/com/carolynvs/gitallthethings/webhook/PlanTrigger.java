@@ -34,13 +34,11 @@ public class PlanTrigger
         this.bambooLinkBuilder = bambooLinkBuilder;
     }
 
-    public String execute(PlanKey planKey, User user, Map<String, String> variables)
+    public String execute(PlanKey planKey, User user)
     {
         ImmutableChain plan = (ImmutableChain)cachedPlanManager.getPlanByKey(planKey);
 
-        Map<String, String> params = new HashMap<String, String>();
-
-        ExecutionRequestResult result = planExecutionManager.startManualExecution(plan, user, params, variables);
+        ExecutionRequestResult result = planExecutionManager.startManualExecution(plan, user, Collections.EMPTY_MAP, Collections.EMPTY_MAP);
         return bambooLinkBuilder.getBuildUrl(result.getPlanResultKey().toString());
     }
 

@@ -49,12 +49,9 @@ public class PullRequestBuilder
 
     private String triggerPlan(PlanKey planKey, PullRequestEvent pullRequestEvent)
     {
-        PullRequestBuildContext buildContext = new PullRequestBuildContext();
-        Map<String, String> variables = buildContext.createPullRequestVariables(pullRequestEvent.PullRequest);
-
         User triggerUser = pluginData.getAssociatedUser(planKey.toString(), pullRequestEvent);
 
-        return planTrigger.execute(planKey, triggerUser, variables);
+        return planTrigger.execute(planKey, triggerUser);
     }
 
     public PlanKey ensureBranchPlanExists(PlanKey planKey, PullRequest pullRequest)
