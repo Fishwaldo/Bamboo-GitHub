@@ -1,5 +1,6 @@
 package com.carolynvs.gitallthethings.webhook;
 
+import com.atlassian.bamboo.build.*;
 import com.atlassian.bamboo.plan.*;
 import com.atlassian.bamboo.plan.branch.*;
 import com.atlassian.bamboo.plan.cache.*;
@@ -26,17 +27,39 @@ public class PullRequestBuilder
     }
 
     public void build(String planKey, PullRequestEvent pullRequestEvent)
-            throws Exception
+            throws PlanCreationDeniedException, SetPullRequestStatusException
+
     {
-        PullRequestBuildContext buildContext = new PullRequestBuildContext();
-        Map<String, String> variables = buildContext.createPullRequestVariables(pullRequestEvent.PullRequest);
+        PlanKey masterPlanKey = PlanKeys.getPlanKey(planKey);
 
-        User triggerUser = pluginData.getAssociatedUser(planKey, pullRequestEvent);
-        String buildResultUrl = planTrigger.execute(PlanKeys.getPlanKey(planKey), triggerUser, variables);
+        PlanKey branchPlanKey = ensureBranchPlanExists(masterPlanKey, pullRequestEvent.PullRequest);
+        String buildResultUrl = triggerPlan(branchPlanKey, pullRequestEvent);
+        setPullRequestStatusToPending(planKey, pullRequestEvent, buildResultUrl);
+    }
 
+    private void setPullRequestStatusToPending(String planKey, PullRequestEvent pullRequestEvent, String buildResultUrl)
+            throws SetPullRequestStatusException
+
+    {
         String token = pluginData.getConfig(planKey).getToken();
         GitHubSetCommitStatusRequest statusRequest = new GitHubSetCommitStatusRequest(GitHubCommitState.Pending, "The build is running", buildResultUrl);
 
         github.setPullRequestStatus(token, pullRequestEvent.PullRequest, statusRequest);
+    }
+
+    private String triggerPlan(PlanKey planKey, PullRequestEvent pullRequestEvent)
+    {
+        PullRequestBuildContext buildContext = new PullRequestBuildContext();
+        Map<String, String> variables = buildContext.createPullRequestVariables(pullRequestEvent.PullRequest);
+
+        User triggerUser = pluginData.getAssociatedUser(planKey.toString(), pullRequestEvent);
+
+        return planTrigger.execute(planKey, triggerUser, variables);
+    }
+
+    public PlanKey ensureBranchPlanExists(PlanKey planKey, PullRequest pullRequest)
+            throws PlanCreationDeniedException
+    {
+        return planTrigger.createPullRequestBranchPlan(planKey, pullRequest);
     }
 }

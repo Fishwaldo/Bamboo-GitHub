@@ -24,7 +24,6 @@ public class PullRequestTriggerResource
     private final PullRequestBuilder pullRequestBuilder;
     private final GitHubCommunicator github;
     private final PluginDataManager pluginData;
-    private final PlanTrigger planTrigger;
 
     public PullRequestTriggerResource(BranchDetectionService branchDetectionService, CachedPlanManager cachedPlanManager, PlanManager planManager,
                                       VariableConfigurationService variableConfigurationService,
@@ -36,23 +35,6 @@ public class PullRequestTriggerResource
         BambooLinkBuilder bambooLinkBuilder = new BambooLinkBuilder(administrationConfigurationService);
         this.pullRequestBuilder = new PullRequestBuilder(branchDetectionService, cachedPlanManager, planManager, variableConfigurationService, planExecutionManager, pluginData, github, bambooLinkBuilder);
 
-        this.planTrigger = new PlanTrigger(branchDetectionService, cachedPlanManager, planManager, variableConfigurationService, planExecutionManager, bambooLinkBuilder);
-    }
-
-    @POST
-    @Path("test/{number}/{title}")
-    public Response test(@PathParam("number") Integer pullRequestNumber, @PathParam("title") String pullRequestTitle)
-    {
-        String planKey = "TEST-TEST";
-        try {
-            PullRequest pullRequest = new PullRequest();
-            pullRequest.Number = pullRequestNumber;
-            pullRequest.Title = pullRequestTitle;
-            planTrigger.createPullRequestBranchPlan(PlanKeys.getPlanKey(planKey), pullRequest);
-        } catch (PlanCreationDeniedException ex) {
-            Response.serverError().entity(new ServerError(ex).toJson()).build();
-        }
-        return Response.ok().build();
     }
 
     @POST
@@ -74,11 +56,17 @@ public class PullRequestTriggerResource
             return Response.status(Response.Status.ACCEPTED).build();
 
         try {
-            planTrigger.createPullRequestBranchPlan(PlanKeys.getPlanKey(planKey), pullRequestEvent.PullRequest);
             pullRequestBuilder.build(planKey, pullRequestEvent);
-        } catch (Exception ex) {
-            return Response.serverError().entity(new ServerError(ex).toJson()).build();
+        } catch (SetPullRequestStatusException e) {
+            return Response.serverError().entity(new ServerError(e).toJson()).build();
+        } catch (PlanCreationDeniedException e) {
+            return Response.status(Response.Status.FORBIDDEN)
+                    .entity("You do not have permission to create a branch plan for the specified pull request").build();
+        } catch(PlanCreationException e) {
+            return Response.status(Response.Status.FORBIDDEN)
+                    .entity("You do not have permission to create a branch plan for the specified pull request").build();
         }
+
 
         return Response.status(Response.Status.OK).build();
     }

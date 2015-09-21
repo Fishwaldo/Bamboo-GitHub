@@ -5,6 +5,7 @@ import com.atlassian.bamboo.build.creation.*;
 import com.atlassian.bamboo.plan.*;
 import com.atlassian.bamboo.plan.branch.*;
 import com.atlassian.bamboo.plan.cache.*;
+import com.atlassian.bamboo.security.*;
 import com.atlassian.bamboo.variable.*;
 import com.atlassian.user.*;
 import com.carolynvs.gitallthethings.*;
@@ -35,7 +36,7 @@ public class PlanTrigger
 
     public String execute(PlanKey planKey, User user, Map<String, String> variables)
     {
-        ImmutableChain plan = cachedPlanManager.getMasterPlan(planKey);
+        ImmutableChain plan = (ImmutableChain)cachedPlanManager.getPlanByKey(planKey);
 
         Map<String, String> params = new HashMap<String, String>();
 
@@ -43,25 +44,49 @@ public class PlanTrigger
         return bambooLinkBuilder.getBuildUrl(result.getPlanResultKey().toString());
     }
 
-    public void createPullRequestBranchPlan(PlanKey masterPlanKey, PullRequest pullRequest)
+    public PlanKey createPullRequestBranchPlan(PlanKey masterPlanKey, PullRequest pullRequest)
             throws PlanCreationDeniedException
     {
         ImmutableChain masterPlan = cachedPlanManager.getMasterPlan(masterPlanKey);
 
         ImmutableChainBranch existingPlan = findBranchPlan(masterPlan, pullRequest.Number);
         if(existingPlan != null)
-            return;
+            return existingPlan.getPlanKey();
 
-        createBranchPlan(masterPlan, pullRequest);
+        return createBranchPlan(masterPlan, pullRequest);
     }
 
-    private void createBranchPlan(ImmutableChain masterPlan, PullRequest pullRequest)
+    private PlanKey createBranchPlan(final ImmutableChain masterPlan, final PullRequest pullRequest)
             throws PlanCreationDeniedException
     {
+        ImpersonationHelper.escalateCurrentThreadToSystemAuthority();
         String branchPlanName = String.format("Pull Request %s - %s", pullRequest.Number, pullRequest.Title);
 
         PlanKey branchPlanKey = branchDetectionService.createChainBranch(masterPlan, branchPlanName, null, null, PlanCreationService.EnablePlan.ENABLED, true);
         setPullRequestVariables(branchPlanKey, pullRequest);
+        return branchPlanKey;
+        /*
+        ImpersonationHelper.runWithSystemAuthority(new BambooRunnables.NotThrowing() {
+            @Override
+            public void run() {
+
+            }
+        });*/
+
+        /*try {
+            return impersonationService.runAsUser("admin", new Callable<PlanKey>() {
+                @Override
+                public PlanKey call() throws Exception {
+                    String branchPlanName = String.format("Pull Request %s - %s", pullRequest.Number, pullRequest.Title);
+
+                    PlanKey branchPlanKey = branchDetectionService.createChainBranch(masterPlan, branchPlanName, null, null, PlanCreationService.EnablePlan.ENABLED, true);
+                    setPullRequestVariables(branchPlanKey, pullRequest);
+                    return branchPlanKey;
+                }
+            }).call();
+        } catch (Exception e) {
+            throw new Exception("Unable to create the pull request branch as admin", e);
+        }*/
     }
 
     private void setPullRequestVariables(PlanKey planKey, PullRequest pullRequest)
